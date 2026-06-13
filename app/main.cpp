@@ -1,9 +1,9 @@
 #include <iostream>
 
-#include "Simulator.hpp"
+#include "PokerGame.hpp"
 
 int main()
 {
-	poker::Simulator sim;
+	poker::PokerGame sim;
 	return 0;
 }

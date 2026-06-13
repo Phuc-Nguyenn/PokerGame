@@ -30,6 +30,7 @@ public:
 
   void Init();
   void Start();
+  void ShutDown();
   void Stop();
 
 private:
@@ -42,7 +43,7 @@ private:
   std::expected<BoardState, std::error_code>
   DealCommunityCards(BoardState state, std::uint8_t numOfCards);
 
-  std::expected<BoardState, std::error_code> ShowDown();
+  std::expected<BoardState, std::error_code> ShowDown(BoardState state);
 
   std::expected<BoardState, std::error_code> ClearAndReset();
 

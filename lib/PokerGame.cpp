@@ -4,6 +4,7 @@
 
 #include <cassert>
 #include <iostream>
+#include <spdlog/spdlog.h>
 
 namespace poker {
 
@@ -48,10 +49,8 @@ PokerGame::DoBettingRound(BoardState state) {
   REQUIRES(state == BoardState::PreFlop || state == BoardState::Flop ||
            state == BoardState::Turn || state == BoardState::River);
 
-  do
-  {
-    p %= 
-  }
+  do {
+  } while(true);
 
   return {};
 }
@@ -61,7 +60,7 @@ PokerGame::DealCommunityCards(BoardState state, std::uint8_t numOfCards) {
   return {};
 }
 
-std::expected<BoardState, std::error_code> PokerGame::ShowDown() { return {}; }
+std::expected<BoardState, std::error_code> PokerGame::ShowDown(BoardState state) { return {}; }
 
 std::expected<BoardState, std::error_code> PokerGame::ClearAndReset() {
   return {};
@@ -72,19 +71,24 @@ void PokerGame::Start() {
     while (true) {
       BoardState state{BoardState::PreDeal};
 
-      auto result =
-          DealHoleCards(state)
+      // clang-format off
+      auto result = 
+              DealHoleCards(state)
               .and_then([this](BoardState s) { return DoBettingRound(s); })
-              .and_then(
-                  [this](BoardState s) { return DealCommunityCards(s, 3); })
+              .and_then([this](BoardState s) { return DealCommunityCards(s, 3); })
               .and_then([this](BoardState s) { return DoBettingRound(s); })
-              .and_then(
-                  [this](BoardState s) { return DealCommunityCards(s, 1); })
+              .and_then([this](BoardState s) { return DealCommunityCards(s, 1); })
               .and_then([this](BoardState s) { return DoBettingRound(s); })
-              .and_then(
-                  [this](BoardState s) { return DealCommunityCards(s, 1); })
+              .and_then([this](BoardState s) { return DealCommunityCards(s, 1); })
               .and_then([this](BoardState s) { return DoBettingRound(s); })
-              .and_then([this](BoardState) { return ShowDown(); });
+              .and_then([this](BoardState s) { return ShowDown(s); });
+      // clang-format on
+
+      if (!result)
+      {
+        
+      }
+
     }
   } catch (contract::exception &e) {
     std::cout << std::endl << e.what() << std::endl;

@@ -1,5 +1,6 @@
 [requires]
 boost/1.83.0
+spdlog/1.17.0
 
 [generators]
 CMakeDeps

@@ -34,7 +34,7 @@ Rank rank{};
 class Deck {
 
 public:
-  void DealPlayer(Player &player);
+  void DealPlayer(Player &player) {};
 
 private:
 
