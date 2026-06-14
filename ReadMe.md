@@ -13,6 +13,7 @@ make
 ## Suitable encoding/parsing for card + player move needs to be chosen and doc
 
 The player server needs to implement:
+```
 HTTP POST:
 path:
   /next_move:
@@ -56,3 +57,4 @@ path:
           description: Invalid request body
         '500':
           description: Internal server error
+```
