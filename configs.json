@@ -1,0 +1,21 @@
+{
+	"hostname": "127.0.0.1",
+	"port": 12700,
+	"players": [
+		{
+			"name": "Jasmin",
+			"hostname": "127.0.0.1",
+			"port": 12701
+		},
+		{
+			"name": "Phuc",
+			"hostname": "127.0.0.1",
+			"port": 12702
+		},
+		{
+			"name": "Khang",
+			"hostname": "127.0.0.1",
+			"port": 12703
+		}
+	]
+}

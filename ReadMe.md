@@ -1,18 +1,35 @@
-## build steps
+## build steps (debug)
 
-conan install . --output-folder=build --build=missing
+``` conan profile detect --force ```
 
-cd build
+``` conan install . --output-folder=build --build=missing -s build_type=Debug ```
 
-cmake ..
+``` cmake -B build -S . -DCMAKE_TOOLCHAIN_FILE=build/conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Debug ```
 
-make
+``` cmake --build build ```
+
+## build steps (release)
+
+``` conan profile detect --force ```
+
+``` conan install . --output-folder=build --build=missing -s build_type=Release ```
+
+``` cmake -B build -S . -DCMAKE_TOOLCHAIN_FILE=build/conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Release ```
+
+``` cmake --build build ```
+
+## run steps
+
+```
+build/
+```
 
 # HTTP API for player server
 
 ## Suitable encoding/parsing for card + player move needs to be chosen and doc
 
 The player server needs to implement:
+```
 HTTP POST:
 path:
   /next_move:
@@ -56,3 +73,4 @@ path:
           description: Invalid request body
         '500':
           description: Internal server error
+```

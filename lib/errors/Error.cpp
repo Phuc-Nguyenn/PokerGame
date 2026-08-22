@@ -12,17 +12,20 @@ std::string SimErrorCategory::message(int ev) const {
   switch (static_cast<SimError>(ev)) {
   case SimError::BadRequest:
     return "Bad request";
-  case SimError::InvalidMove:
-    return "Invalid move";
+  case SimError::InvalidAction:
+    return "Invalid action";
+  case SimError::NoCardsLeft:
+    return "No cards left";
+  case SimError::InvalidConfig:
+    return "Invalid configuration";
   default:
     return "Unknown error";
   }
 }
-} // namespace errors
-} // namespace poker
 
-namespace std {
 std::error_code make_error_code(poker::errors::SimError e) {
   return {static_cast<int>(e), poker::errors::GetSimErrorCategory()};
 }
-} // namespace std
+
+} // namespace errors
+} // namespace poker
