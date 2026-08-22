@@ -39,6 +39,14 @@ namespace contract {
             ss << "Rule '" << rule << "' violated at " << filename << ":" << line;
             message = ss.str();
         }
+        
+        template<typename TReason>
+        exception(const char* rule, const char *filename, int line, const TReason reason) {
+            std::stringstream ss;
+            ss << "Rule '" << rule << "' violated at " << filename << ":" << line << " because " << reason;
+            message = ss.str();
+        }
+
         virtual ~exception() throw () {
         }
         const char* what() const throw() {
@@ -51,15 +59,25 @@ namespace contract {
             throw exception(rule, filename, line);
         }
     }
+    template<typename TReason>
+    inline void assert_that(bool condition, const char* rule, const char *filename, int line, const TReason reason) {
+        if (!condition) {
+            throw exception(rule, filename, line, std::move(reason));
+        }
+    }
 };
 
 #ifdef NDEBUG
 #define ASSURES(condition) (void)0;
 #else
 #define ASSURES(condition) contract::assures(condition, #condition, __FILE__, __LINE__);
+#define ASSERT(condition, reason) contract::assert_that(condition, #condition, __FILE__, __LINE__, reason);
 #endif
 
 #define REQUIRES(condition) ASSURES(condition)
 #define ENSURES(condition) ASSURES(condition)
+
+#define PRECOND(condition, reason) ASSERT(condition, reason);
+#define POSTCOND(condition, reason) ASSERT(condition, reason);
 
 #endif //_CONTRACT_HPP
