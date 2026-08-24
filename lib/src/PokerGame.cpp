@@ -30,7 +30,7 @@ PokerGame::ReadConfig(const boost::filesystem::path &file) {
   if (!f.is_open()) {
     int err = errno;
     std::error_code ec(err, std::generic_category());
-    spdlog::critical("Unable to open file [{}] [{}]", file.string(),
+    SPDLOG_CRITICAL("Unable to open file [{}] [{}]", file.string(),
                      ec.message());
     return std::unexpected(ec);
   }
@@ -46,7 +46,7 @@ PokerGame::ReadConfig(const boost::filesystem::path &file) {
     try {
       return json.at(key);
     } catch (const std::exception &e) {
-      spdlog::critical("Critical configuration error: [{}]", err_msg);
+      SPDLOG_CRITICAL("Critical configuration error: [{}]", err_msg);
       throw;
     }
   };
@@ -79,11 +79,11 @@ PokerGame::ReadConfig(const boost::filesystem::path &file) {
       config.players.push_back(new_player);
     }
   } catch (const std::exception &e) {
-    spdlog::critical("Failed reading configuration: [{}]", e.what());
+    SPDLOG_CRITICAL("Failed reading configuration: [{}]", e.what());
     return std::unexpected(errors::SimError::InvalidConfig);
   }
 
-  spdlog::info("Configuration=[{}]", json.dump());
+  SPDLOG_INFO("Configuration=[{}]", json.dump());
 
   return config;
 }
@@ -96,12 +96,13 @@ PokerGame::Init(const boost::filesystem::path &file) {
       return std::unexpected(result.error());
     }
 
-    spdlog::info("Successfully parsed configuration");
+    SPDLOG_INFO("Successfully parsed configuration");
     config_ = result.value();
   }
   {
-    for (auto i : std::views::iota(0, config_.number_of_players))
-      players_.emplace_back(Player{});
+    for (const auto& player_config : config_.players) {
+      players_.emplace_back(Player{player_config.name});
+    }
   }
   {
     auto result = ConnectPlayers();
@@ -133,9 +134,23 @@ PokerGame::DealHoleCards() {
 
   PlayerIdx startFrom = PlayerUnderTheGun();
   auto result = ForEachPlayer(
-      [this](Player &player) { return deck_.DealPlayer(player); }, startFrom);
+      [this](Player &player) -> std::expected<common::functional::Void, std::error_code> {
 
-  ENSURES(result.has_value());
+        auto cards = deck_.DealTwoCards();
+        if (!cards.has_value()) {
+          return std::unexpected(cards.error());
+        }
+        player.dealCards(cards.value());
+        return {};
+      }, startFrom);
+
+  if (!result.has_value())
+  {
+    return std::unexpected(result.error());
+  }
+
+  state_.AdvanceStage();      
+  POSTCOND(state_.stage == Stage::PreFlop, state_.stage);
   return {};
 }
 
@@ -148,10 +163,11 @@ PokerGame::DealHoleCards() {
  */
 std::expected<common::functional::Void, std::error_code>
 PokerGame::DoBettingRound() {
-  REQUIRES(state_.stage == common::Stage::PreFlop ||
+  PRECOND(state_.stage == common::Stage::PreFlop ||
            state_.stage == common::Stage::Flop ||
            state_.stage == common::Stage::Turn ||
-           state_.stage == common::Stage::River);
+           state_.stage == common::Stage::River, 
+           state_.stage);
 
   PlayerIdx startIdx =
       state_.stage == Stage::PreFlop ? PlayerUnderTheGun() : PlayerSmallBlind();

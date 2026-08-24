@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Common.hpp"
-#include "Contract.hpp"
 #include <nlohmann/json.hpp>
 #include <nlohmann/json_fwd.hpp>
 #include <optional>
@@ -37,7 +36,7 @@ namespace json {
     }
     std::ostringstream oss;
     oss << a;
-    spdlog::critical("Failed to serialize action=[{}]", oss.view());
+    SPDLOG_CRITICAL("Failed to serialize action=[{}]", oss.view());
     return std::nullopt;
   }
 
@@ -56,7 +55,7 @@ namespace json {
     }
     std::ostringstream oss;
     oss << s;
-    spdlog::critical("Failed to serialize suit=[{}] [{}]", static_cast<int>(s), oss.view());
+    SPDLOG_CRITICAL("Failed to serialize suit=[{}] [{}]", static_cast<int>(s), oss.view());
     return std::nullopt;
   }
 
@@ -84,7 +83,7 @@ namespace json {
     }
     std::ostringstream oss;
     oss << r;
-    spdlog::critical("Failed to serialize rank=[{}] [{}]", static_cast<int>(r), oss.view());
+    SPDLOG_CRITICAL("Failed to serialize rank=[{}] [{}]", static_cast<int>(r), oss.view());
     return std::nullopt;
   }
   
@@ -94,7 +93,7 @@ namespace json {
     if (!rank || !suit) {
       std::ostringstream oss;
       oss << c;
-      spdlog::critical("Failed to serialize card=", oss.view());
+      SPDLOG_CRITICAL("Failed to serialize card=", oss.view());
       return std::nullopt;
     };
     return std::string{*rank} + std::string{*suit};
@@ -104,12 +103,15 @@ namespace json {
     public:
       std::vector<std::byte>
       Serialize(const poker::common::RoundState &state) override {
+        SPDLOG_DEBUG("Serializing state");
         nlohmann::json json;
+        json["board"] = {};
+        json["history"] = {};
         for (const auto &card : state.communityCards) {
           auto result = json::Serialize(card);
           if (!result)
           {
-            spdlog::critical("Failed to serialize cards while serializing state");
+            SPDLOG_CRITICAL("Failed to serialize cards while serializing state");
             return {};
           } 
           json["board"].emplace_back(std::move(*result));
@@ -119,20 +121,24 @@ namespace json {
           auto result = json::Serialize(action);
           if (!result)
           {
-            spdlog::critical("Failed to serialize previous actions while serializing state");
+            SPDLOG_CRITICAL("Failed to serialize previous actions while serializing state");
             return {};
           }
-          json["board"].emplace_back(std::move(*result));
+          json["history"].emplace_back(std::move(*result));
         }
 
-        auto binary = json.get_binary();
+        SPDLOG_DEBUG("Serialized state=[{}]", json.dump());
+
+        auto binary = json.dump();
         auto ptr = reinterpret_cast<std::byte *>(binary.data());
         return std::vector<std::byte>(ptr, ptr + binary.size());
       };
 
       std::optional<poker::common::Action>
       Deserialize(std::span<std::byte> payload) override {
+        SPDLOG_DEBUG("Deserializing payload");
         nlohmann::json json = nlohmann::json::parse(payload);
+        SPDLOG_DEBUG("Json parsed payload into=[{}]", json.dump());
         std::string str = json.get<std::string>();
         if (str.empty())
         {
@@ -154,10 +160,10 @@ namespace json {
             {
               auto amount = std::stoul(std::string{str.begin() + 1, str.end()});
               return poker::common::Action{poker::common::Command::Raise, amount};
-            }  
+            } 
           }
         } catch(const std::exception& e) {
-          spdlog::critical("unhandled exception occured when deserializing: {}", e.what());
+          SPDLOG_CRITICAL("unhandled exception occured when deserializing: {}", e.what());
           return std::nullopt;
         };
         return std::nullopt;

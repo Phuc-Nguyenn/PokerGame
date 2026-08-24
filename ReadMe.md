@@ -6,7 +6,7 @@
 
 ``` cmake -B build -S . -DCMAKE_TOOLCHAIN_FILE=build/conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Debug ```
 
-``` cmake --build build ```
+``` cmake --build build --parallel 8```
 
 ## build steps (release)
 
@@ -16,7 +16,7 @@
 
 ``` cmake -B build -S . -DCMAKE_TOOLCHAIN_FILE=build/conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Release ```
 
-``` cmake --build build ```
+``` cmake --build build --parallel 8```
 
 ## run steps
 

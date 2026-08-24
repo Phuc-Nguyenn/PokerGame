@@ -12,8 +12,11 @@
 #include <boost/beast/http/span_body.hpp>
 #include <boost/beast/http/vector_body.hpp>
 #include <boost/core/noncopyable.hpp>
+#include <boost/system/detail/error_code.hpp>
+#include <expected>
 #include <nlohmann/json_fwd.hpp>
 #include <spdlog/spdlog.h>
+#include <system_error>
 
 class Connection : private boost::noncopyable {
 public:
@@ -22,23 +25,30 @@ public:
       : executor_(executor), resolver_(executor), stream_(executor),
         host_(std::move(host)), port_(port) {};
 
-  std::vector<std::byte> SendRecv(std::span<std::byte> payload, std::string_view path) {
+  std::expected<std::vector<std::byte>, std::error_code> SendRecv(std::span<std::byte> payload, std::string_view path) {
     /**
      * connect to remote endpoint
      */
-    spdlog::debug("resolving endpoints for {}:{}", host_, port_);
+    SPDLOG_DEBUG("resolving endpoints for {}:{}", host_, port_);
     auto endpoints = resolver_.resolve(
         host_, std::to_string(port_));
-    spdlog::debug("endpoints resolved, connecting to {}:{}",
+    SPDLOG_DEBUG("endpoints resolved, connecting to {}:{}",
                   endpoints->host_name(), endpoints->service_name());
     stream_.expires_after(std::chrono::seconds(1));
-    stream_.connect(endpoints);
-    spdlog::info("connected to {}:{}", host_, port_);
+
+    boost::system::error_code ec;
+    stream_.connect(endpoints, ec);
+    if (ec) {
+      SPDLOG_ERROR("Failed to connect to {}:{}", host_, port_);
+      return std::unexpected(ec);
+    }
+    
+    SPDLOG_INFO("connected to {}:{}", host_, port_);
 
     /**
      * create http request
      */
-    spdlog::debug("creating http request");
+    SPDLOG_DEBUG("creating http request");
     boost::beast::http::request<boost::beast::http::buffer_body> req{
         boost::beast::http::verb::post, path, 11};
 
@@ -53,7 +63,7 @@ public:
     /**
      * send payload
      */
-    spdlog::debug("writing http request to the socket");
+    SPDLOG_DEBUG("writing http request to the socket");
     boost::beast::http::write(stream_, req);
 
     /**
@@ -62,7 +72,7 @@ public:
     boost::beast::flat_buffer buffer;
     boost::beast::http::response<boost::beast::http::vector_body<std::byte>>
         res;
-    spdlog::debug("reading http response from the stream");
+    SPDLOG_DEBUG("reading http response from the stream");
     boost::beast::http::read(stream_, buffer, res);
 
     return res.body();

@@ -4,7 +4,6 @@
 #include <cstdint>
 #include <ostream>
 #include <vector>
-#include <array>
 
 namespace poker {
 namespace common {

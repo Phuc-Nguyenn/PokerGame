@@ -1,8 +1,6 @@
 #pragma once
 
 #include "Card.hpp"
-#include "Common.hpp"
-
 #include <algorithm>
 #include <array>
 #include <cassert>
@@ -33,11 +31,10 @@ public:
   Deck(Deck &&) = delete;
   Deck &operator=(Deck &&) = delete;
 
-  std::expected<common::functional::Void, std::error_code> DealPlayer(Player &player);
+  std::expected<std::pair<Card, Card>, std::error_code> DealTwoCards();
 
   std::expected<Card, std::error_code> DrawRandomCard();
   
-
   void Reset() {
     ResetDeck();
   };
@@ -45,26 +42,32 @@ public:
   std::uint8_t GetNumCardsLeft(){ return numCardsLeft_; };
 
   using IthCard = std::array<Card, DECK_SIZE>::size_type;
-
+  
+#ifndef UNIT_TEST
 private:
+#else
+public:
+#endif
+
+
   struct DeckCard {
     Card value;
     bool inDeck;
   };
 
   using DeckType = std::array<DeckCard, DECK_SIZE>;
-  DeckType deck_;
+  DeckType deck_{};
   static constexpr Card CardAtIdx(Deck::IthCard ith) {
     return Card{static_cast<Suit>((ith / 4) + 1),
                 static_cast<Rank>((ith % 13) + 1)};
   };
 
-  static constexpr DeckType::iterator GetNthCardInDeck(DeckType deck, IthCard card) {
+  static constexpr DeckType::iterator GetNthCardInDeck(DeckType& deck, IthCard card) {
     std::uint8_t count = 0;
     return std::ranges::find_if(
         deck,
         [&count = count, &nth = card](const bool &inDeck) {
-          return inDeck && ++count == nth;
+          return inDeck && count++ == nth;
         },
         &DeckCard::inDeck);
   }
