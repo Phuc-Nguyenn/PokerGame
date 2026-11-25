@@ -28,7 +28,7 @@ struct AppError
 
   std::string what() const {
     const auto& loc = location;
-    return std::format("[{}] at [{}] func=[{}]() in {}:{}.", code.message(), context, loc.file_name(), loc.function_name(), loc.file_name(), loc.line());
+    return std::format("Error=[{}] Context=[{}] Function=[{}] Location=[{}:{}]", code.message(), context, loc.function_name(), loc.file_name(), loc.line());
   }
 
   bool IsRetryable() const { return is_retryable; }

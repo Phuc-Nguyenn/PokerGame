@@ -21,10 +21,9 @@ Connection::SendRecv(std::span<std::byte> payload, std::string_view path) {
   boost::system::error_code ec;
   auto endpoints = resolver_.resolve(host_, std::to_string(port_), ec);
   if (ec) {
-    SPDLOG_ERROR("resolve_failed host={} port={} error={}", host_, port_, ec.message());
     return std::unexpected(AppError(
         ConnectionError::ResolveFailed,
-        std::format("resolve_failed host={} port={} error={}", host_, port_, ec.message()),
+        std::format("failed to resolve endpoint. host=[{}] port=[{}] error=[{}]", host_, port_, ec.message()),
         true));
   }
 
@@ -34,10 +33,9 @@ Connection::SendRecv(std::span<std::byte> payload, std::string_view path) {
 
   stream_.connect(endpoints, ec);
   if (ec) {
-    SPDLOG_ERROR("connect_failed host={} port={} error={}", host_, port_, ec.message());
     return std::unexpected(AppError(
         ConnectionError::ConnectFailed,
-        std::format("connect_failed host={} port={} error={}", host_, port_, ec.message()),
+        std::format("failed to connect to endpoint. host=[{}] port=[{}] error=[{}]", host_, port_, ec.message()),
         true));
   }
 
@@ -64,10 +62,9 @@ Connection::SendRecv(std::span<std::byte> payload, std::string_view path) {
   SPDLOG_DEBUG("writing_http_request host={} port={} path={}", host_, port_, path);
   boost::beast::http::write(stream_, req, ec);
   if (ec) {
-    SPDLOG_ERROR("http_write_failed host={} port={} path={} error={}", host_, port_, path, ec.message());
     return std::unexpected(AppError(
         ConnectionError::WriteFailed,
-        std::format("http_write_failed host={} port={} path={} error={}", host_, port_, path, ec.message()),
+        std::format("failed to write http request. host=[{}] port=[{}] path=[{}] error=[{}]", host_, port_, path, ec.message()),
         true));
   }
 
@@ -79,10 +76,9 @@ Connection::SendRecv(std::span<std::byte> payload, std::string_view path) {
   SPDLOG_DEBUG("reading_http_response host={} port={} path={}", host_, port_, path);
   boost::beast::http::read(stream_, buffer, res, ec);
   if (ec) {
-    SPDLOG_ERROR("http_read_failed host={} port={} path={} error={}", host_, port_, path, ec.message());
     return std::unexpected(AppError(
         ConnectionError::ReadFailed,
-        std::format("http_read_failed host={} port={} path={} error={}", host_, port_, path, ec.message()),
+        std::format("failed to read http response. host=[{}] port=[{}] path=[{}] error=[{}]", host_, port_, path, ec.message()),
         true));
   }
 

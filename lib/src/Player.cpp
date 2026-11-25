@@ -30,9 +30,6 @@ Player::PromptNextAction(common::RoundState state) {
     }
 
     if (!result.error().IsRetryable() || attempt == kMaxAttempts) {
-      SPDLOG_ERROR("prompt_action_failed player_id={} attempt={} max_attempts={} error={} context={}",
-                   player_id_, attempt, kMaxAttempts,
-                   result.error().code.message(), result.error().context);
       return std::unexpected(result.error());
     }
 
@@ -44,7 +41,7 @@ Player::PromptNextAction(common::RoundState state) {
   if (!action) {
     return std::unexpected(errors::AppError(
         errors::ClientError::InvalidAction,
-        std::format("deserialize_action_failed player_id={}", player_id_)));
+        std::format("failed to deserialize player action. player id=[{}]", player_id_)));
   }
 
   ASSURES(action_.has_value());

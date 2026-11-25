@@ -26,9 +26,7 @@ int main(int argc, char** argv)
 
 	if (!result) {
 		const auto& err = result.error();
-		SPDLOG_CRITICAL("poker_sim_failed error={} context={} location={}:{}",
-		                err.code.message(), err.context,
-		                err.location.file_name(), err.location.line());
+		SPDLOG_CRITICAL("Poker game failed. {}", err.what());
 	}
 
 	return 0;

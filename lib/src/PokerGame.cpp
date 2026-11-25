@@ -27,6 +27,46 @@ using Stage = common::Stage;
 
 PokerGame::PokerGame() = default;
 
+namespace {
+
+template <typename T>
+std::expected<void, errors::AppError>
+GetConfigField(const nlohmann::json &j, std::string_view key, T &out,
+               std::string_view scope = {}) {
+  if (!j.is_object()) {
+    return std::unexpected(errors::AppError(
+        errors::ConfigError::InvalidConfig,
+        std::format("configuration is not a json object. scope=[{}]",
+                    scope)));
+  }
+
+  if (!j.contains(key)) {
+    return std::unexpected(errors::AppError(
+        errors::ConfigError::MissingField,
+        std::format("configuration is missing key=[{}]. scope=[{}]", key,
+                    scope)));
+  }
+
+  try {
+    out = j.at(key).get<T>();
+    return {};
+  } catch (const nlohmann::json::type_error &e) {
+    return std::unexpected(
+        errors::AppError(errors::ConfigError::InvalidFieldType,
+                         std::format("configuration has invalid field type for "
+                                     "key=[{}]. scope=[{}] error=[{}]",
+                                     key, scope, e.what())));
+  } catch (const std::exception &e) {
+    return std::unexpected(errors::AppError(
+        errors::ConfigError::InvalidConfig,
+        std::format(
+            "configuration read failed for key=[{}]. scope=[{}] error=[{}]",
+            key, scope, e.what())));
+  }
+}
+
+} // namespace
+
 std::expected<config, errors::AppError>
 PokerGame::ReadConfig(const boost::filesystem::path &file) {
   std::ifstream f{file.string()};
@@ -34,87 +74,65 @@ PokerGame::ReadConfig(const boost::filesystem::path &file) {
   if (!f.is_open()) {
     int err = errno;
     std::error_code ec(err, std::generic_category());
-    return std::unexpected(errors::AppError(
-        errors::ConfigError::FileOpenFailed,
-        std::format("config_open_failed path={} error={}", file.string(), ec.message())));
+    return std::unexpected(
+        errors::AppError(errors::ConfigError::FileOpenFailed,
+                         std::format("failed opening configuration file at path=[{}] error=[{}]",
+                                     file.string(), ec.message())));
   }
 
   nlohmann::json json = nlohmann::json::parse(f, nullptr, false);
-  config config;
   if (json.is_discarded()) {
     return std::unexpected(errors::AppError(
         errors::ConfigError::ParseError,
-        std::format("config_parse_failed path={}", file.string())));
+        std::format("failed parsing configuration file. path=[{}]", file.string())));
   }
   if (json.empty()) {
-    return std::unexpected(errors::AppError(
-        errors::ConfigError::EmptyConfig,
-        std::format("config_empty path={}", file.string())));
+    return std::unexpected(
+        errors::AppError(errors::ConfigError::EmptyConfig,
+                         std::format("configuration file is empty. path=[{}]", file.string())));
   }
 
-  auto get_config_field = [&](auto json, std::string_view key,
-                              std::string_view err_msg) -> auto {
-    try {
-      return json.at(key);
-    } catch (const std::exception &e) {
-      SPDLOG_ERROR("config_field_error key={} reason={} error={}", key, err_msg, e.what());
-      throw;
-    }
-  };
+  config cfg{};
+  nlohmann::json::array_t player_configs;
+  const std::string root_scope = std::format("path={}", file.string());
 
-  try {
+  return GetConfigField(json, "hostname", cfg.hostname, root_scope)
+      .and_then(
+          [&] { return GetConfigField(json, "port", cfg.port, root_scope); })
+      .and_then([&] { return GetConfigField(json, "bb", cfg.bb, root_scope); })
+      .and_then([&] { return GetConfigField(json, "sb", cfg.sb, root_scope); })
+      .and_then([&] {
+        return GetConfigField(json, "players", player_configs, root_scope);
+      })
+      .and_then([&]() -> std::expected<config, errors::AppError> {
+        cfg.number_of_players = static_cast<int>(player_configs.size());
+        for (std::size_t i = 0; i < player_configs.size(); ++i) {
+          const auto &player_json = player_configs[i];
+          PlayerConfig new_player{};
 
-    config.hostname = get_config_field(json, "hostname",
-                                       "unable to get poker game's hostname");
-    config.port = get_config_field(json, "port",
-                                   "unable to get poker game's hosted port");
+          auto res = GetConfigField(player_json, "name", new_player.name,
+                                    std::format("player index={}", i))
+                         .and_then([&] {
+                           return GetConfigField(
+                               player_json, "hostname", new_player.hostname,
+                               std::format("player={}", new_player.name));
+                         })
+                         .and_then([&] {
+                           return GetConfigField(
+                               player_json, "port", new_player.port,
+                               std::format("player={}", new_player.name));
+                         });
 
-    config.bb = get_config_field(json, "bb",
-                                 "unable to get poker game's big blind value");
+          if (!res) {
+            return std::unexpected(res.error());
+          }
+          cfg.players.push_back(std::move(new_player));
+        }
 
-    config.sb = get_config_field(
-        json, "sb", "unable to get poker game's small blind value");
-
-    auto player_configs =
-        get_config_field(json, "players", "unable to get players");
-    config.number_of_players = player_configs.size();
-
-    for (auto player_config : player_configs) {
-      PlayerConfig new_player{
-          .name = get_config_field(player_config, "name",
-                                   "unable to get player's name"),
-          .hostname = get_config_field(
-              player_config, "hostname",
-              std::format(
-                  "unable to get field=[hostname] from player [{}] config",
-                  std::string(player_config.at("name")))),
-          .port = get_config_field(
-              player_config, "port",
-              std::format("unable to get field=[port] from player [{}] config",
-                          std::string(player_config.at("name")))),
-      };
-      config.players.push_back(new_player);
-    }
-  } catch (const nlohmann::json::out_of_range &e) {
-    SPDLOG_CRITICAL("config_missing_field path={} error={}", file.string(), e.what());
-    return std::unexpected(errors::AppError(
-        errors::ConfigError::MissingField,
-        std::format("config_missing_field path={} error={}", file.string(), e.what())));
-  } catch (const nlohmann::json::type_error &e) {
-    SPDLOG_CRITICAL("config_invalid_field_type path={} error={}", file.string(), e.what());
-    return std::unexpected(errors::AppError(
-        errors::ConfigError::InvalidFieldType,
-        std::format("config_invalid_field_type path={} error={}", file.string(), e.what())));
-  } catch (const std::exception &e) {
-    SPDLOG_CRITICAL("config_read_failed path={} error={}", file.string(), e.what());
-    return std::unexpected(errors::AppError(
-        errors::ConfigError::InvalidConfig,
-        std::format("config_read_failed path={} error={}", file.string(), e.what())));
-  }
-
-  SPDLOG_INFO("config_loaded path={}", file.string());
-
-  return config;
+        SPDLOG_INFO("config_loaded path={} players={}", file.string(),
+                    cfg.number_of_players);
+        return cfg;
+      });
 }
 
 std::expected<void, errors::AppError>
@@ -143,10 +161,9 @@ PokerGame::Init(const boost::filesystem::path &file) {
   return {};
 }
 
-std::expected<void, errors::AppError>
-PokerGame::ForEachPlayer(
-    std::function<std::expected<void, errors::AppError>(
-        Player &, const PlayerConfig &)>
+std::expected<void, errors::AppError> PokerGame::ForEachPlayer(
+    std::function<std::expected<void, errors::AppError>(Player &,
+                                                        const PlayerConfig &)>
         function,
     const PlayerIdx startFrom) {
   auto p = startFrom;
@@ -165,11 +182,9 @@ PokerGame::ForEachPlayer(
   return {};
 }
 
-std::expected<void, errors::AppError>
-PokerGame::ForEachPlayer(std::function<std::expected<void,
-                                                     errors::AppError>(Player &)>
-                             function,
-                         const PlayerIdx startFrom, const bool skipFolded) {
+std::expected<void, errors::AppError> PokerGame::ForEachPlayer(
+    std::function<std::expected<void, errors::AppError>(Player &)> function,
+    const PlayerIdx startFrom, const bool skipFolded) {
   auto p = startFrom;
   ASSERT(players_.size() > 0, players_.size());
   do {
@@ -190,28 +205,24 @@ PokerGame::ForEachPlayer(std::function<std::expected<void,
   return {};
 }
 
-std::expected<void, errors::AppError>
-PokerGame::ConnectPlayers() {
-  auto result = ForEachPlayer(
-      [this](Player &player, const PlayerConfig &config)
-          -> std::expected<void, errors::AppError> {
-        auto new_connection = std::make_unique<Connection>(
-            this->ctx_.get_executor(), config.hostname, config.port);
-        return player.Connect(std::move(new_connection));
-      });
+std::expected<void, errors::AppError> PokerGame::ConnectPlayers() {
+  auto result = ForEachPlayer([this](Player &player, const PlayerConfig &config)
+                                  -> std::expected<void, errors::AppError> {
+    auto new_connection = std::make_unique<Connection>(
+        this->ctx_.get_executor(), config.hostname, config.port);
+    return player.Connect(std::move(new_connection));
+  });
 
   return result;
 }
-std::expected<void, errors::AppError>
-PokerGame::DealHoleCards() {
+std::expected<void, errors::AppError> PokerGame::DealHoleCards() {
   PRECOND(state_.stage == common::Stage::PreDeal, state_.stage);
   REQUIRES(deck_.GetNumCardsLeft() == DECK_SIZE);
   REQUIRES(players_.size() > 0)
 
   PlayerIdx startFrom = PlayerUnderTheGun();
   auto result = ForEachPlayer(
-      [this](Player &player)
-          -> std::expected<void, errors::AppError> {
+      [this](Player &player) -> std::expected<void, errors::AppError> {
         auto cards = deck_.DealTwoCards();
         if (!cards.has_value()) {
           return std::unexpected(cards.error());
@@ -237,8 +248,7 @@ PokerGame::DealHoleCards() {
  *  3. for each players, prompts for the next action, then validates, then
  * performs action
  */
-std::expected<void, errors::AppError>
-PokerGame::DoBettingRound() {
+std::expected<void, errors::AppError> PokerGame::DoBettingRound() {
   PRECOND(state_.stage == common::Stage::PreFlop ||
               state_.stage == common::Stage::Flop ||
               state_.stage == common::Stage::Turn ||
@@ -276,21 +286,23 @@ PokerGame::isValidAction(const Player &player, const common::Action &action,
     return action;
   case common::Command::CheckCall:
     if (!player.HasMoney(state.lastRaiseTo)) {
-      SPDLOG_ERROR("action_invalid_not_enough_money command=CheckCall required_amount={}", state.lastRaiseTo);
       return std::unexpected(errors::AppError(
           errors::ClientError::NotEnoughMoney,
-          std::format("action_invalid_not_enough_money required_amount={}", state.lastRaiseTo)));
+          std::format("player does not have enough money to call. required amount=[{}]",
+                      state.lastRaiseTo)));
     }
   case common::Command::Raise:
     if (action.amount < config.bb) {
       return std::unexpected(errors::AppError(
           errors::ClientError::RaiseLessThanBB,
-          std::format("action_invalid_raise_below_bb amount={} bb={}", action.amount, config.bb)));
+          std::format("raise amount is below big blind. amount=[{}] bb=[{}]",
+                      action.amount, config.bb)));
     }
     if (action.amount < 2 * state.lastRaiseTo) {
       return std::unexpected(errors::AppError(
           errors::ClientError::RaiseLessThanPrevRaise,
-          std::format("action_invalid_raise_below_min amount={} min_raise={}", action.amount, 2 * state.lastRaiseTo)));
+          std::format("raise amount is below minimum raise. amount=[{}] min raise=[{}]",
+                      action.amount, 2 * state.lastRaiseTo)));
     }
   }
 
@@ -372,10 +384,11 @@ std::expected<void, errors::AppError> PokerGame::ShowDown() {
       }
     }
 
-    if(!eligiblePlayers.empty())
+    if (!eligiblePlayers.empty())
       return std::unexpected(errors::AppError(
           errors::SimError::NoEligiblePlayersInShowdownTier,
-          std::format("showdown_no_eligible_players tier={} tier_pot={}", tier, tierPotAmount)));
+          std::format("no eligible players in showdown tier. tier=[{}] tier pot=[{}]", tier,
+                      tierPotAmount)));
 
     if (eligiblePlayers.size() == 1) {
       eligiblePlayers.at(0)->AddMoney(tierPotAmount);
@@ -401,11 +414,10 @@ std::expected<void, errors::AppError> PokerGame::ShowDown() {
   return {};
 }
 
-std::expected<void, errors::AppError>
-PokerGame::ClearAndReset() {
+std::expected<void, errors::AppError> PokerGame::ClearAndReset() {
   state_.Reset();
 
-  std::ignore = ForEachPlayer([&](Player& player) {
+  std::ignore = ForEachPlayer([&](Player &player) {
     player.ResetRoundState();
     return std::expected<void, errors::AppError>();
   });

@@ -50,7 +50,7 @@ std::expected<Card, errors::AppError> Deck::DrawRandomCard() {
   if (numCardsLeft_ == 0) {
     return std::unexpected(errors::AppError(
         errors::SimError::NoCardsLeft,
-        std::format("draw_card_failed num_cards_left={}", numCardsLeft_)));
+        std::format("cannot draw card from empty deck. cards left=[{}]", numCardsLeft_)));
   };
 
   std::uniform_int_distribution<std::uint8_t> distr(0, numCardsLeft_ - 1);
