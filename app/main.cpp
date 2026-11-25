@@ -5,9 +5,6 @@
 #include <spdlog/spdlog.h>
 #include <boost/filesystem.hpp>
 
-
-using namespace poker::common::functional;
-
 int main(int argc, char** argv)
 {
 	spdlog::set_pattern("[%H:%M:%S %z] [%^-%l-%$] [%s:%#]\t\t%v");
@@ -25,10 +22,13 @@ int main(int argc, char** argv)
 	}
 	
 	poker::PokerGame sim{};
-	auto result = sim.Init(configPath).and_then([&](Void){ return sim.Start(); });
+	auto result = sim.Init(configPath).and_then([&](){ return sim.Start(); });
 
 	if (!result) {
-		SPDLOG_CRITICAL("Error occured while running PokerSim [{}]", result.error().message());
+		const auto& err = result.error();
+		SPDLOG_CRITICAL("poker_sim_failed error={} context={} location={}:{}",
+		                err.code.message(), err.context,
+		                err.location.file_name(), err.location.line());
 	}
 
 	return 0;

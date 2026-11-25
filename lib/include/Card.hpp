@@ -11,25 +11,7 @@ enum class Suit : std::uint8_t {
   Hearts
 };
 
-inline std::ostream &operator<<(std::ostream &o, Suit s) {
-  switch (s) {
-  case Suit::Unassigned:
-    o << "Unassigned";
-    break;
-  case Suit::Spades:
-    o << "Spades";
-    break;
-  case Suit::Clubs:
-    o << "Clubs";
-  case Suit::Diamond:
-    o << "Diamond";
-    break;
-  case Suit::Hearts:
-    o << "Hearts";
-    break;
-  }
-  return o;
-}
+std::ostream &operator<<(std::ostream &o, Suit s);
 
 enum class Rank : std::uint8_t {
   Unassigned = 0,
@@ -48,46 +30,18 @@ enum class Rank : std::uint8_t {
   King = 13
 };
 
-inline std::ostream &operator<<(std::ostream &o, Rank r) {
-  switch (r) {
-  case Rank::Unassigned:
-  case Rank::Ace:
-    o << 'A';
-    break;
-  case Rank::Ten:
-    o << 'T';
-    break;
-  case Rank::Jack:
-    o << 'J';
-    break;
-  case Rank::Queen:
-    o << "Q";
-    break;
-  case Rank::King:
-    o << "K";
-    break;
-  case Rank::Two:
-  case Rank::Three:
-  case Rank::Four:
-  case Rank::Five:
-  case Rank::Six:
-  case Rank::Seven:
-  case Rank::Eight:
-  case Rank::Nine:
-    o << static_cast<int>(r);
-    break;
-  }
-  return o;
-}
+std::ostream &operator<<(std::ostream &o, Rank r);
 
 struct Card {
   Suit suit{};
   Rank rank{};
 };
 
-inline std::ostream &operator<<(std::ostream &o, Card c) {
-  o << c.rank << " of " << c.suit;
-  return o;
-};
+std::ostream &operator<<(std::ostream &o, Card c);
+
+
+constexpr inline std::array<std::uint8_t, 14> rankToPrimeLut = {0, 2, 3, 5, 7,11, 13, 17, 19, 23, 29, 31, 37, 41};
+
+
 
 } // namespace poker

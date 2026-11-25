@@ -1,13 +1,13 @@
 #pragma once
 
 #include "Card.hpp"
+#include "Error.hpp"
 #include <algorithm>
 #include <array>
 #include <cassert>
 #include <cstdint>
-#include <random>
 #include <expected>
-#include <system_error>
+#include <random>
 
 namespace poker {
 
@@ -21,25 +21,19 @@ class Player;
 class Deck {
 
 public:
-  Deck() : rd_{}, gen_{rd_()} {
-    for (Deck::IthCard i = 0; i < DECK_SIZE; ++i) {
-      deck_.at(i) = {CardAtIdx(i), true};
-    }
-  };
+  Deck();
   Deck(Deck &) = delete;
   Deck &operator=(Deck &) = delete;
   Deck(Deck &&) = delete;
   Deck &operator=(Deck &&) = delete;
 
-  std::expected<std::pair<Card, Card>, std::error_code> DealTwoCards();
+  std::expected<std::pair<Card, Card>, errors::AppError> DealTwoCards();
 
-  std::expected<Card, std::error_code> DrawRandomCard();
+  std::expected<Card, errors::AppError> DrawRandomCard();
   
-  void Reset() {
-    ResetDeck();
-  };
+  void Reset();
 
-  std::uint8_t GetNumCardsLeft(){ return numCardsLeft_; };
+  std::uint8_t GetNumCardsLeft();
 
   using IthCard = std::array<Card, DECK_SIZE>::size_type;
   
@@ -76,11 +70,7 @@ public:
   std::random_device rd_;
   std::mt19937 gen_;
 
-  void ResetDeck()
-  {
-    std::ranges::for_each(deck_, [](auto& inDeck){inDeck = true;}, &DeckCard::inDeck);
-    numCardsLeft_ = DECK_SIZE;
-  };
+  void ResetDeck();
 };
 
 } // namespace poker

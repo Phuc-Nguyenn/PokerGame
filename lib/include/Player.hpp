@@ -4,12 +4,15 @@
 #include <boost/beast/http/field.hpp>
 #include <expected>
 #include <nlohmann/json.hpp>
+#include <optional>
+#include <string_view>
 #include <system_error>
 #include <utility>
 
 #include "Card.hpp"
 #include "Common.hpp"
 #include "Connection.hpp"
+#include "Error.hpp"
 #include "Serializer.hpp"
 
 namespace poker {
@@ -17,56 +20,51 @@ namespace poker {
 class Player {
 public:
 
-  Player(std::string_view player_id) : player_id_(player_id){
-  }
+  Player(std::string_view player_id);
 
-  template <int N> Card &GetCard() {
+  template <int N> std::optional<Card> GetCard() {
     static_assert(N == 0 || N == 1, "Player has two cards.");
+
+    if (!holeCards_.has_value()) {
+      return std::nullopt;
+    }
+
     if constexpr (N == 0)
-      return holeCards_.first;
+      return holeCards_->first;
     else if constexpr (N == 1)
-      return holeCards_.second;
+      return holeCards_->second;
   }
 
-  void dealCards(std::pair<Card, Card> cards) { holeCards_ = std::move(cards); }
+  void dealCards(std::pair<Card, Card> cards);
 
   /**
    * Prompts the player for the next action
    */
-  std::expected<common::Action, std::error_code>
-  PromptNextAction(common::RoundState state) {
-    REQUIRES(!action_.has_value());
-    REQUIRES(connection_ != nullptr);
+  std::expected<common::Action, errors::AppError>
+  PromptNextAction(common::RoundState state);
 
-    std::string_view path = "/next_move";
+  std::expected<void, errors::AppError>
+  Connect(std::unique_ptr<Connection> new_connection);
 
-    auto bytes = serializer_.Serialize(state);
+  bool TakeMoney(common::TMoney amountToTake);
 
-    auto result = connection_->SendRecv(bytes, "/next_move");
+  void AddMoney(common::TMoney amountToAdd);
+  bool HasMoney(common::TMoney amount) const;
 
-    if (!result.has_value())
-    {
-      SPDLOG_ERROR("Error occured when sending and receiving data for player=[{}]", player_id_);
-      return std::unexpected(result.error());
-    }
+  bool SetCurrentBet(common::TMoney currentBet);
 
-    serializer_.Deserialize(*result);
+  bool Folded() const { return folded_round_; };
+  void FoldRound() { folded_round_ = true; };
 
-    ASSURES(action_.has_value());
-    return {};
-  };
+  void AddToPotContribution(common::TMoney amountToAdd) { totalPotContribution_ += amountToAdd; }
+  common::TMoney GetTotalPotContribution() const { return totalPotContribution_; }
+  common::TMoney GetCurrentBet() const { return currentBet_; }
 
-  std::expected<common::functional::Void, std::error_code>
-  Connect(std::unique_ptr<Connection> new_connection) {
-    REQUIRES(!connection_);
-    REQUIRES(new_connection != nullptr);
-    connection_ = std::move(new_connection);
-    return {};
-  }
+  void ResetRoundState();
 
 private:
-  std::pair<Card, Card> holeCards_{};
-  common::TMoney money_;
+  std::optional<std::pair<Card, Card>> holeCards_{};
+  common::TMoney money_{0};
 
   /**
    * The players action this round, they might not have played yet hence
@@ -76,5 +74,9 @@ private:
   std::optional<common::Action> action_;
   std::unique_ptr<Connection> connection_;
   poker::serializer::json::JsonSerializer serializer_;
+  common::TMoney currentBet_{0};
+  common::TMoney totalPotContribution_{0};
+
+  bool folded_round_{false};
 };
 } // namespace poker

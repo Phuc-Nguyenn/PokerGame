@@ -8,6 +8,7 @@
 
 #include "Common.hpp"
 #include "Deck.hpp"
+#include "Error.hpp"
 #include "Player.hpp"
 
 namespace boost::filesystem {
@@ -25,6 +26,8 @@ struct config {
   std::string hostname{};
   int port{};
   int number_of_players{};
+  uint32_t bb{};
+  uint32_t sb{};
   std::vector<PlayerConfig> players{};
 };
 
@@ -39,29 +42,29 @@ public:
   /**
    * Initialise the poker game
    */
-  std::expected<common::functional::Void, std::error_code>
+  std::expected<void, errors::AppError>
   Init(const boost::filesystem::path &file);
 
   /**
    * Start the poker game's main loop which repetitively executes every round
    */
-  std::expected<common::functional::Void, std::error_code> Start();
+  std::expected<void, errors::AppError> Start();
 
   /**
    * Stop the poker game, allowing no more actions to be done, and closing of
    * connections Performs any nessecary cleanup logic
    */
-  std::expected<common::functional::Void, std::error_code> Stop();
+  std::expected<void, errors::AppError> Stop();
 
 private:
-  std::expected<common::functional::Void, std::error_code> ConnectPlayers();
+  std::expected<void, errors::AppError> ConnectPlayers();
 
   /**
    * Deal two cards to every player starting from under the gun
    */
-  std::expected<common::functional::Void, std::error_code> DealHoleCards();
+  std::expected<void, errors::AppError> DealHoleCards();
 
-  std::expected<common::functional::Void, std::error_code> DoBettingRound();
+  std::expected<void, errors::AppError> DoBettingRound();
 
   /**
    * Deal numOfCards amount of community cards
@@ -71,67 +74,61 @@ private:
    * state.stage == Stage::Turn); REQUIRES(state.communityCards.size() +
    * numOfCards <= 5);
    */
-  std::expected<common::functional::Void, std::error_code>
+  std::expected<void, errors::AppError>
   DealCommunityCards(std::uint8_t numOfCards);
 
-  std::expected<common::functional::Void, std::error_code> ShowDown();
+  std::expected<void, errors::AppError> ShowDown();
 
-  std::expected<common::functional::Void, std::error_code> ClearAndReset();
+  std::expected<void, errors::AppError> ClearAndReset();
 
-  std::expected<common::functional::Void, std::error_code> ForEachPlayer(
+  std::expected<void, errors::AppError> ForEachPlayer(
       std::function<
-          std::expected<common::functional::Void, std::error_code>(Player &,const PlayerConfig& )>
+          std::expected<void, errors::AppError>(Player &, const PlayerConfig &)>
           function,
-      const PlayerIdx startFrom = 0) {
-    auto p = startFrom;
-    ASSERT(players_.size() > 0, players_.size());
-    do {
-      ASSERT(p >= 0, p);
-      ASSERT(p < players_.size(),
-             std::format("p=[{}], players.size=[{}]", p, players_.size()));
-      auto result = function(players_.at(p), config_.players.at(p));
-      if (!result)
-        return std::unexpected(result.error());
+      const PlayerIdx startFrom = 0);
 
-      p = (p + 1) % players_.size();
-    } while (p != startFrom);
-    return {};
-  };
-
-  std::expected<common::functional::Void, std::error_code> ForEachPlayer(
+  std::expected<void, errors::AppError> ForEachPlayer(
       std::function<
-          std::expected<common::functional::Void, std::error_code>(Player &)>
+          std::expected<void, errors::AppError>(Player &)>
           function,
-      const PlayerIdx startFrom = 0) {
-    auto p = startFrom;
-    ASSERT(players_.size() > 0, players_.size());
-    do {
-      ASSERT(p >= 0, p);
-      ASSERT(p < players_.size(),
-             std::format("p=[{}], players.size=[{}]", p, players_.size()));
-      auto result = function(players_.at(p));
-      if (!result)
-        return std::unexpected(result.error());
+      const PlayerIdx startFrom = 0, const bool skipFolded = false);
 
-      p = (p + 1) % players_.size();
-    } while (p != startFrom);
-    return {};
-  };
-
-  static std::expected<common::Action, std::error_code>
+  static std::expected<common::Action, errors::AppError>
   isValidAction(const Player &player, const common::Action &action,
-                const common::RoundState &state);
-  std::expected<common::functional::Void, std::error_code>
-  DoAction(Player &player, const common::Action &action,
-           const common::RoundState &state);
+                const common::RoundState &state, const config& config);
+                
+  std::expected<void, errors::AppError>
+  DoAction(Player &player, const common::Action &action);
 
-  std::expected<config, std::error_code>
+  std::expected<config, errors::AppError>
   ReadConfig(const boost::filesystem::path &file);
+
+  static std::int32_t EvaluatePlayerHand(const Player* player)
+  {
+    return 0;
+  }
+
+  void NextStage()
+  {
+    auto combinePlayerContributionToPot = [this](Player& player) {
+      auto playerAmount = player.GetCurrentBet();
+      state_.pot += playerAmount;
+      player.TakeMoney(playerAmount);
+      player.AddToPotContribution(playerAmount);
+      player.SetCurrentBet(0);
+      return std::expected<void, errors::AppError>();
+    };
+    std::ignore = ForEachPlayer(combinePlayerContributionToPot);
+  
+    state_.AdvanceStage();
+  }
 
   boost::asio::io_context ctx_;
   Deck deck_;
   std::vector<Card> communityCards_;
-  std::vector<Player> players_;
+
+  // do not sort or change the ordering as this order determines the seat order around the table TODO: possibly add a player seat id to make this more robust
+  std::vector<std::unique_ptr<Player>> players_;
   PlayerIdx dealerIdx_;
   PlayerIdx PlayerSmallBlind() const;
   PlayerIdx PlayerUnderTheGun() const;

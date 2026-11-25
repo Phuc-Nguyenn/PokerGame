@@ -73,7 +73,7 @@ TEST(TestDeck, DrawingSingleCards52TimesLeavesEmptyDeck)
 
 	auto result = deck.DrawRandomCard();
 	ASSERT_FALSE(result.has_value());
-	ASSERT_EQ(result.error(), poker::errors::SimError::NoCardsLeft);
+	ASSERT_EQ(result.error().code, poker::errors::SimError::NoCardsLeft);
 }
 
 TEST(TestDeck, DrawingRandomCards52TimesAreAllDifferent)
@@ -104,6 +104,6 @@ TEST(TestDeck, DrawingTwoCards26TimesLeavesEmptyDeck)
 
 	auto result = deck.DrawRandomCard();
 	ASSERT_FALSE(result.has_value());
-	ASSERT_EQ(result.error(), poker::errors::SimError::NoCardsLeft);
+	ASSERT_EQ(result.error().code, poker::errors::SimError::NoCardsLeft);
 }
 

@@ -8,11 +8,13 @@ find_package(nlohmann_json 3.12.0 REQUIRED)
 enable_testing()
 
 add_library(PokerSimLib STATIC 
+	src/Card.cpp
 	src/Common.cpp
 	src/Connection.cpp
 	src/Deck.cpp
 	src/Player.cpp
 	src/PokerGame.cpp
+	src/Serializer.cpp
 	errors/Error.cpp
 )
 

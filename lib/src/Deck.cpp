@@ -2,10 +2,30 @@
 #include "Contract.hpp"
 #include "Error.hpp"
 #include <expected>
+#include <format>
 
 namespace poker {
 
-std::expected<std::pair<Card, Card>, std::error_code>
+Deck::Deck() : rd_{}, gen_{rd_()} {
+  for (Deck::IthCard i = 0; i < DECK_SIZE; ++i) {
+    deck_.at(i) = {CardAtIdx(i), true};
+  }
+}
+
+void Deck::Reset() {
+  ResetDeck();
+}
+
+std::uint8_t Deck::GetNumCardsLeft() {
+  return numCardsLeft_;
+}
+
+void Deck::ResetDeck() {
+  std::ranges::for_each(deck_, [](auto& inDeck){inDeck = true;}, &DeckCard::inDeck);
+  numCardsLeft_ = DECK_SIZE;
+}
+
+std::expected<std::pair<Card, Card>, errors::AppError>
 Deck::DealTwoCards() {
   std::pair<Card, Card> cards;
   {
@@ -23,12 +43,14 @@ Deck::DealTwoCards() {
   return cards;
 };
 
-std::expected<Card, std::error_code> Deck::DrawRandomCard() {
+std::expected<Card, errors::AppError> Deck::DrawRandomCard() {
   PRECOND(numCardsLeft_ >= 0, numCardsLeft_);
   PRECOND(numCardsLeft_ <= 52, numCardsLeft_);
   
   if (numCardsLeft_ == 0) {
-    return std::unexpected(poker::errors::SimError::NoCardsLeft);
+    return std::unexpected(errors::AppError(
+        errors::SimError::NoCardsLeft,
+        std::format("draw_card_failed num_cards_left={}", numCardsLeft_)));
   };
 
   std::uniform_int_distribution<std::uint8_t> distr(0, numCardsLeft_ - 1);
